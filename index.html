@@ -1,0 +1,685 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tri Carrier Blueprint AI</title>
+
+<style>
+:root {
+    --bg: #07111f;
+    --panel: #0d1b2c;
+    --line: #25415c;
+    --blue: #54c8ff;
+    --text: #e5f4ff;
+    --muted: #91a9bd;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+
+header {
+    padding: 20px;
+    border-bottom: 1px solid var(--line);
+    background: #091625;
+}
+
+header h1 {
+    margin: 0;
+    font-size: clamp(22px, 4vw, 32px);
+    letter-spacing: 2px;
+}
+
+header p {
+    color: var(--blue);
+    margin-bottom: 0;
+}
+
+.app {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 16px;
+    padding: 16px;
+}
+
+.workspace,
+.panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    min-width: 0;
+}
+
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+}
+
+button {
+    background: #142a40;
+    color: var(--text);
+    border: 1px solid #315675;
+    border-radius: 7px;
+    padding: 9px 13px;
+    cursor: pointer;
+}
+
+button:hover {
+    border-color: var(--blue);
+}
+
+button.active {
+    background: #07557c;
+    border-color: var(--blue);
+}
+
+.zoom-label {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.blueprint {
+    overflow: auto;
+    height: 70vh;
+    min-height: 420px;
+    position: relative;
+    cursor: grab;
+    user-select: none;
+    touch-action: pan-x pan-y;
+    background-color: #081625;
+    background-image:
+        linear-gradient(#18314a 1px, transparent 1px),
+        linear-gradient(90deg, #18314a 1px, transparent 1px),
+        linear-gradient(#10243a 1px, transparent 1px),
+        linear-gradient(90deg, #10243a 1px, transparent 1px);
+    background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+}
+
+.blueprint.dragging {
+    cursor: grabbing;
+}
+
+svg {
+    display: block;
+    width: 100%;
+    min-width: 650px;
+    height: 100%;
+    min-height: 420px;
+}
+
+svg[hidden] {
+    display: none;
+}
+
+.component {
+    cursor: pointer;
+    outline: none;
+}
+
+.component:hover,
+.component:focus {
+    filter: drop-shadow(0 0 7px #54c8ff);
+}
+
+.hull {
+    fill: #102f49;
+    stroke: var(--blue);
+    stroke-width: 2;
+}
+
+.detail {
+    fill: none;
+    stroke: #54c8ff;
+    stroke-width: 1.5;
+}
+
+.label {
+    fill: #c4eaff;
+    font-size: 13px;
+}
+
+.dimension {
+    fill: none;
+    stroke: #7fa9c7;
+    stroke-width: 1;
+    stroke-dasharray: 5 4;
+}
+
+.panel {
+    padding: 18px;
+}
+
+.panel h2 {
+    margin-top: 0;
+    font-size: 19px;
+}
+
+.panel h3 {
+    margin-bottom: 6px;
+    color: var(--blue);
+    font-size: 14px;
+}
+
+.panel p,
+.panel li {
+    color: var(--muted);
+    line-height: 1.6;
+    font-size: 14px;
+}
+
+.spec {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+}
+
+.spec span:first-child {
+    color: var(--muted);
+}
+
+.spec span:last-child {
+    text-align: right;
+}
+
+.notice {
+    color: #f5cf83 !important;
+    font-size: 12px !important;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+}
+
+footer {
+    padding: 0 16px 20px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+@media (max-width: 900px) {
+    .app {
+        grid-template-columns: 1fr;
+    }
+
+    .blueprint {
+        height: 60vh;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>TRI CARRIER SPACE SHIP</h1>
+    <p>THREE CARRIERS. ONE MISSION.</p>
+</header>
+
+<main class="app">
+    <section class="workspace">
+        <div class="toolbar">
+            <button class="active" data-view="top" onclick="changeView('top', this)">Top View</button>
+            <button data-view="side" onclick="changeView('side', this)">Side View</button>
+            <button data-view="front" onclick="changeView('front', this)">Front View</button>
+            <button onclick="zoomBlueprint(1.2)">＋ Zoom</button>
+            <button onclick="zoomBlueprint(0.8)">− Zoom</button>
+            <button onclick="resetZoom()">Reset</button>
+            <span class="zoom-label" id="zoomLabel">Zoom: 100%</span>
+        </div>
+
+        <div class="blueprint" id="blueprint">
+
+            <!-- TOP VIEW -->
+            <svg id="top-view" viewBox="0 0 1000 650"
+                 xmlns="http://www.w3.org/2000/svg"
+                 role="img" aria-label="Conceptual top view of the Tri Carrier spacecraft">
+
+                <text x="30" y="35" class="label">TOP VIEW / CONCEPTUAL BLUEPRINT</text>
+
+                <g class="component" tabindex="0" role="button"
+                   aria-label="Central carrier"
+                   onclick="showInfo('Central Carrier')"
+                   onkeydown="componentKey(event,'Central Carrier')">
+
+                    <path class="hull"
+                        d="M500 90
+                           L545 160 L565 245 L565 420
+                           L535 485 L500 530
+                           L465 485 L435 420 L435 245
+                           L455 160 Z"/>
+
+                    <path class="detail"
+                        d="M500 110 L500 500
+                           M465 190 L535 190
+                           M450 260 L550 260
+                           M445 350 L555 350
+                           M455 420 L545 420"/>
+
+                    <path class="hull"
+                        d="M470 175 L485 145 L500 130
+                           L515 145 L530 175 Z"/>
+
+                    <rect x="475" y="215" width="50" height="65"
+                          rx="8" class="detail"/>
+                    <rect x="475" y="295" width="50" height="45"
+                          rx="5" class="detail"/>
+
+                    <path class="detail"
+                        d="M435 275 L370 300 L370 380
+                           L435 360
+                           M565 275 L630 300 L630 380
+                           L565 360"/>
+
+                    <text x="500" y="565" text-anchor="middle" class="label">
+                        CENTRAL CARRIER
+                    </text>
+                </g>
+
+                <g class="component" tabindex="0" role="button"
+                   aria-label="Left auxiliary carrier"
+                   onclick="showInfo('Left Auxiliary Carrier')"
+                   onkeydown="componentKey(event,'Left Auxiliary Carrier')">
+
+                    <path class="hull"
+                        d="M235 205 L265 235 L275 315
+                           L265 390 L235 420
+                           L205 390 L195 315 L205 235 Z"/>
+
+                    <path class="detail"
+                        d="M235 220 L235 405
+                           M210 270 L260 270
+                           M205 320 L265 320
+                           M210 365 L260 365"/>
+
+                    <path class="hull"
+                        d="M205 265 L145 285 L145 340
+                           L200 330
+                           M265 265 L310 285 L310 340
+                           L270 330"/>
+
+                    <text x="235" y="450" text-anchor="middle" class="label">
+                        AUXILIARY A
+                    </text>
+                </g>
+
+                <g class="component" tabindex="0" role="button"
+                   aria-label="Right auxiliary carrier"
+                   onclick="showInfo('Right Auxiliary Carrier')"
+                   onkeydown="componentKey(event,'Right Auxiliary Carrier')">
+
+                    <path class="hull"
+                        d="M765 205 L795 235 L805 315
+                           L795 390 L765 420
+                           L735 390 L725 315 L735 235 Z"/>
+
+                    <path class="detail"
+                        d="M765 220 L765 405
+                           M740 270 L790 270
+                           M735 320 L795 320
+                           M740 365 L790 365"/>
+
+                    <path class="hull"
+                        d="M735 265 L690 285 L690 340
+                           L730 330
+                           M795 265 L855 285 L855 340
+                           L800 330"/>
+
+                    <text x="765" y="450" text-anchor="middle" class="label">
+                        AUXILIARY B
+                    </text>
+                </g>
+
+                <path class="dimension" d="M145 590 H855"/>
+                <path class="dimension" d="M145 580 V600 M855 580 V600"/>
+                <text x="500" y="615" text-anchor="middle" class="label">
+                    OVERALL LENGTH: 132.6 m (source specification)
+                </text>
+
+                <text x="30" y="635" class="label">
+                    Select a spacecraft component for information.
+                </text>
+            </svg>
+
+            <!-- SIDE VIEW -->
+            <svg id="side-view" viewBox="0 0 1000 650"
+                 xmlns="http://www.w3.org/2000/svg"
+                 role="img" aria-label="Conceptual side view of the Tri Carrier spacecraft"
+                 hidden>
+
+                <text x="30" y="35" class="label">SIDE VIEW / CONCEPTUAL BLUEPRINT</text>
+
+                <g class="component" tabindex="0" role="button"
+                   onclick="showInfo('Central Carrier')"
+                   onkeydown="componentKey(event,'Central Carrier')">
+
+                    <path class="hull"
+                        d="M150 360 L230 300 L390 270
+                           L650 280 L820 330
+                           L860 360 L820 390
+                           L650 420 L390 430
+                           L230 400 Z"/>
+
+                    <path class="detail"
+                        d="M230 300 L270 360 L230 400
+                           M390 270 L410 360 L390 430
+                           M650 280 L630 360 L650 420
+                           M230 360 H820"/>
+
+                    <path class="hull"
+                        d="M330 280 L370 230 L500 230
+                           L550 280 Z"/>
+
+                    <rect x="420" y="290" width="110" height="35"
+                          rx="5" class="detail"/>
+
+                    <text x="500" y="465" text-anchor="middle" class="label">
+                        CENTRAL CARRIER — SIDE PROFILE
+                    </text>
+                </g>
+
+                <g class="component" tabindex="0" role="button"
+                   onclick="showInfo('Emergency Jet')"
+                   onkeydown="componentKey(event,'Emergency Jet')">
+
+                    <path class="hull"
+                        d="M260 175 L315 150 L440 155
+                           L510 180 L440 200 L315 205 Z"/>
+
+                    <path class="detail" d="M315 150 L350 180 L315 205"/>
+                    <text x="380" y="135" text-anchor="middle" class="label">
+                        EMERGENCY JET CONCEPT
+                    </text>
+                </g>
+
+                <path class="dimension" d="M150 520 H860"/>
+                <path class="dimension" d="M150 510 V530 M860 510 V530"/>
+                <text x="505" y="550" text-anchor="middle" class="label">
+                    Conceptual side profile — not to scale
+                </text>
+            </svg>
+
+            <!-- FRONT VIEW -->
+            <svg id="front-view" viewBox="0 0 1000 650"
+                 xmlns="http://www.w3.org/2000/svg"
+                 role="img" aria-label="Conceptual front view of the Tri Carrier spacecraft"
+                 hidden>
+
+                <text x="30" y="35" class="label">FRONT VIEW / CONCEPTUAL BLUEPRINT</text>
+
+                <g class="component" tabindex="0" role="button"
+                   onclick="showInfo('Central Carrier')"
+                   onkeydown="componentKey(event,'Central Carrier')">
+
+                    <path class="hull"
+                        d="M500 140 L580 210 L640 330
+                           L610 390 L390 390
+                           L360 330 L420 210 Z"/>
+
+                    <path class="detail"
+                        d="M500 155 V375
+                           M420 220 L580 220
+                           M390 290 L610 290
+                           M380 340 L620 340"/>
+
+                    <rect x="455" y="225" width="90" height="65"
+                          rx="8" class="detail"/>
+
+                    <text x="500" y="425" text-anchor="middle" class="label">
+                        CENTRAL CARRIER
+                    </text>
+                </g>
+
+                <g class="component" tabindex="0" role="button"
+                   onclick="showInfo('Auxiliary Carriers')"
+                   onkeydown="componentKey(event,'Auxiliary Carriers')">
+
+                    <path class="hull"
+                        d="M220 250 L280 275 L300 350
+                           L270 380 L200 380 L180 350 Z"/>
+
+                    <path class="hull"
+                        d="M780 250 L720 275 L700 350
+                           L730 380 L800 380 L820 350 Z"/>
+
+                    <text x="240" y="410" text-anchor="middle" class="label">
+                        A
+                    </text>
+                    <text x="760" y="410" text-anchor="middle" class="label">
+                        B
+                    </text>
+                </g>
+
+                <path class="dimension" d="M340 490 H660"/>
+                <text x="500" y="520" text-anchor="middle" class="label">
+                    Conceptual front profile — not to scale
+                </text>
+            </svg>
+        </div>
+    </section>
+
+    <aside class="panel">
+        <h2 id="infoTitle">Mission Specifications</h2>
+        <p id="infoDescription">
+            Select any spacecraft component in the blueprint to explore its conceptual role.
+        </p>
+
+        <h3>PROJECT DATA</h3>
+
+        <div class="spec">
+            <span>Overall length</span>
+            <span>132.6 m</span>
+        </div>
+
+        <div class="spec">
+            <span>Overall width</span>
+            <span>78.4 m</span>
+        </div>
+
+        <div class="spec">
+            <span>Overall height</span>
+            <span>32.4 m</span>
+        </div>
+
+        <div class="spec">
+            <span>Total capacity</span>
+            <span>60 people*</span>
+        </div>
+
+        <div class="spec">
+            <span>Maximum speed</span>
+            <span>5,800 km/h*</span>
+        </div>
+
+        <div class="spec">
+            <span>Cruise speed</span>
+            <span>4,200 km/h*</span>
+        </div>
+
+        <div class="spec">
+            <span>Listed range</span>
+            <span>18,000 km*</span>
+        </div>
+
+        <div class="spec">
+            <span>VTOL</span>
+            <span>Yes — concept</span>
+        </div>
+
+        <h3>COMPONENTS</h3>
+        <ul>
+            <li>Central carrier</li>
+            <li>Auxiliary carriers</li>
+            <li>Emergency jets</li>
+        </ul>
+
+        <p class="notice">
+            *Values are transcribed from the supplied concept blueprint and have not
+            been independently verified. Some passenger-capacity labels in the source
+            conflict. Drawings are illustrative, not to scale, and are not validated
+            engineering designs.
+        </p>
+    </aside>
+</main>
+
+<footer>
+    TRI CARRIER BLUEPRINT AI · CONCEPT DESIGN WORKSPACE
+</footer>
+
+<script>
+const blueprintArea = document.getElementById("blueprint");
+
+let currentZoom = 1;
+let isDragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let scrollStartX = 0;
+let scrollStartY = 0;
+let activePointerId = null;
+
+function showInfo(componentName) {
+    const title = document.getElementById("infoTitle");
+    const description = document.getElementById("infoDescription");
+
+    const componentInfo = {
+        "Central Carrier": {
+            title: "Central Carrier",
+            description:
+                "The central spacecraft in this concept. Its proposed role is to serve as the main carrier and coordinate the mission."
+        },
+        "Left Auxiliary Carrier": {
+            title: "Left Auxiliary Carrier",
+            description:
+                "The left-side auxiliary craft shown in the top-view concept. Its detailed systems and operational role remain to be designed."
+        },
+        "Right Auxiliary Carrier": {
+            title: "Right Auxiliary Carrier",
+            description:
+                "The right-side auxiliary craft shown in the top-view concept. Its detailed systems and operational role remain to be designed."
+        },
+        "Emergency Jet": {
+            title: "Emergency Jet",
+            description:
+                "An illustrative emergency-jet profile. Propulsion, range, seating, and separation systems have not been engineered or validated."
+        },
+        "Auxiliary Carriers": {
+            title: "Auxiliary Carriers",
+            description:
+                "The two smaller side craft shown in the front view. Their final dimensions and functions need further definition."
+        }
+    };
+
+    const info = componentInfo[componentName];
+
+    if (!info) return;
+
+    title.textContent = info.title;
+    description.textContent = info.description;
+}
+
+function componentKey(event, componentName) {
+    if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        showInfo(componentName);
+    }
+}
+
+function changeView(view, button) {
+    document.querySelectorAll("svg[id$='-view']").forEach(svg => {
+        svg.hidden = svg.id !== view + "-view";
+    });
+
+    document.querySelectorAll("[data-view]").forEach(btn => {
+        btn.classList.toggle("active", btn === button);
+    });
+
+    blueprintArea.scrollLeft = 0;
+    blueprintArea.scrollTop = 0;
+}
+
+function applyZoom() {
+    const activeSvg = blueprintArea.querySelector("svg:not([hidden])");
+
+    if (!activeSvg) return;
+
+    activeSvg.style.width = (100 * currentZoom) + "%";
+    activeSvg.style.height = (100 * currentZoom) + "%";
+
+    document.getElementById("zoomLabel").textContent =
+        "Zoom: " + Math.round(currentZoom * 100) + "%";
+}
+
+function zoomBlueprint(factor) {
+    currentZoom = Math.max(0.5, Math.min(2.5, currentZoom * factor));
+    applyZoom();
+}
+
+function resetZoom() {
+    currentZoom = 1;
+    applyZoom();
+    blueprintArea.scrollLeft = 0;
+    blueprintArea.scrollTop = 0;
+}
+
+/* Drag-to-pan navigation */
+blueprintArea.addEventListener("pointerdown", function(event) {
+    if (event.target.closest(".component")) return;
+    if (event.button !== undefined && event.button !== 0) return;
+
+    isDragging = true;
+    activePointerId = event.pointerId;
+
+    dragStartX = event.clientX;
+    dragStartY = event.clientY;
+    scrollStartX = blueprintArea.scrollLeft;
+    scrollStartY = blueprintArea.scrollTop;
+
+    blueprintArea.classList.add("dragging");
+
+    try {
+        blueprintArea.setPointerCapture(event.pointerId);
+    } catch (error) {
+        // Pointer capture may not be available in every environment.
+    }
+});
+
+blueprintArea.addEventListener("pointermove", function(event) {
+    if (!isDragging || event.pointerId !== activePointerId) return;
+
+    blueprintArea.scrollLeft =
+        scrollStartX - (event.clientX - dragStartX);
+
+    blueprintArea.scrollTop =
+        scrollStartY - (event.clientY - dragStartY);
+});
+
+function stopDragging(event) {
+    if (!isDragging) return;
+    if (event && event.pointerId !== activePointerId) return;
+
+    isDragging = false;
+    activePointerId = null;
+    blueprintArea.classList.remove("dragging");
+}
+
+blueprintArea.addEventListener("pointerup", stopDragging);
+blueprintArea.addEventListener("pointercancel", stopDragging);
+blueprintArea.addEventListener("lostpointercapture", stopDragging);
+</script>
+
+</body>
+</html>
